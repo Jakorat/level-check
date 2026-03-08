@@ -1,6 +1,7 @@
 import React from 'react'
 import { Card, CardTitle, Field, Select, Input, Checkbox, Divider } from './UI'
-import { MEMBRANE_OPTIONS } from '../utils/calculations'
+import LayerBuilder from './LayerBuilder'
+import { MEMBRANE_OPTIONS, toFrac, extraLayersTotal } from '../utils/calculations'
 
 const SIDEB_TYPES = [
   { value: 'tile',   label: 'Ceramic / Porcelain Tile' },
@@ -32,6 +33,18 @@ const LVP_THICKNESSES = [
   { value: '0.375',  label: '3/8" (10mm)' },
 ]
 
+const SUBFLOORS_B = [
+  { value: 'plywood-3/4', label: 'Plywood 3/4"' },
+  { value: 'plywood-5/8', label: 'Plywood 5/8"' },
+  { value: 'plywood-1/2', label: 'Plywood 1/2"' },
+  { value: 'plywood-1/4', label: 'Plywood 1/4"' },
+  { value: 'osb-3/4',     label: 'OSB 3/4"' },
+  { value: 'osb-7/16',    label: 'OSB 7/16" (thin)' },
+  { value: 'concrete',    label: 'Concrete Slab' },
+  { value: 'plank',       label: 'Plank (old construction)' },
+  { value: 'none',        label: 'Same as Side A / N/A' },
+]
+
 const TOLERANCES = [
   { value: '0.09375', label: 'ANSI Standard (<3/32" / 2.4mm)' },
   { value: '0.125',   label: 'Common practice (<1/8" / 3.2mm)' },
@@ -39,10 +52,11 @@ const TOLERANCES = [
   { value: '0.25',    label: 'Transition strip OK (<1/4" / 6.4mm)' },
 ]
 
-export default function SideBPanel({ config, onChange }) {
-  const isTile = ['tile', 'stone'].includes(config.typeB)
-  const isLVP  = config.typeB === 'lvp'
+export default function SideBPanel({ config, onChange, extraLayers, onAddLayer, onRemoveLayer, onUpdateLayer, onMoveLayer }) {
+  const isTile   = ['tile', 'stone'].includes(config.typeB)
+  const isLVP    = config.typeB === 'lvp'
   const isCustom = config.typeB === 'custom'
+  const extraTotal = extraLayersTotal(extraLayers)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -57,10 +71,7 @@ export default function SideBPanel({ config, onChange }) {
 
         {isTile && (
           <>
-            <Field
-              label="Tile Size"
-              tip="Larger tiles require thicker mortar beds to maintain proper coverage."
-            >
+            <Field label="Tile Size" tip="Larger tiles require thicker mortar beds for proper coverage.">
               <Select value={config.tileSize} onChange={v => onChange({ tileSize: v })}>
                 {TILE_SIZES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </Select>
@@ -71,14 +82,10 @@ export default function SideBPanel({ config, onChange }) {
                 {TILE_THICKNESSES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </Select>
             </Field>
-
             {config.tileThick === 'custom' && (
               <div style={{ marginTop: 6 }}>
-                <Input
-                  type="number" value={config.tileCustom}
-                  onChange={v => onChange({ tileCustom: v })}
-                  placeholder="0.375" step="0.0625" min="0.125" max="1.5" suffix="in"
-                />
+                <Input type="number" value={config.tileCustom} onChange={v => onChange({ tileCustom: v })}
+                  placeholder="0.375" step="0.0625" min="0.125" max="1.5" suffix="in" />
               </div>
             )}
 
@@ -93,19 +100,13 @@ export default function SideBPanel({ config, onChange }) {
 
             <Field label="Membrane / Underlayment">
               <Select value={config.membrane} onChange={v => onChange({ membrane: v })}>
-                {MEMBRANE_OPTIONS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
+                {MEMBRANE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </Select>
             </Field>
-
             {config.membrane === 'custom' && (
               <div style={{ marginTop: 6 }}>
-                <Input
-                  type="number" value={config.memCustom}
-                  onChange={v => onChange({ memCustom: v })}
-                  placeholder="0.125" step="0.03125" min="0" max="1" suffix="in"
-                />
+                <Input type="number" value={config.memCustom} onChange={v => onChange({ memCustom: v })}
+                  placeholder="0.125" step="0.03125" min="0" max="1" suffix="in" />
               </div>
             )}
           </>
@@ -130,13 +131,46 @@ export default function SideBPanel({ config, onChange }) {
 
         {isCustom && (
           <Field label="Total Thickness">
-            <Input
-              type="number" value={config.customB}
-              onChange={v => onChange({ customB: v })}
-              placeholder="0.75" step="0.0625" min="0.0625" max="4" suffix="in"
-            />
+            <Input type="number" value={config.customB} onChange={v => onChange({ customB: v })}
+              placeholder="0.75" step="0.0625" min="0.0625" max="4" suffix="in" />
           </Field>
         )}
+
+        {/* Extra layers summary */}
+        {extraLayers.length > 0 && (
+          <div style={{
+            marginTop: 10,
+            padding: '6px 10px',
+            background: 'rgba(126,184,232,0.06)',
+            border: '1px solid rgba(126,184,232,0.15)',
+            borderRadius: 6,
+            fontSize: '0.68rem',
+            color: 'var(--muted)',
+          }}>
+            + {toFrac(extraTotal)}" from {extraLayers.length} added layer{extraLayers.length > 1 ? 's' : ''}
+          </div>
+        )}
+
+        {/* Layer builder */}
+        <LayerBuilder
+          side="B"
+          extraLayers={extraLayers}
+          onAdd={onAddLayer}
+          onRemove={onRemoveLayer}
+          onUpdate={onUpdateLayer}
+          onMove={onMoveLayer}
+        />
+
+        <Divider />
+
+        {/* Side B Subfloor */}
+        <CardTitle color="var(--muted)" style={{ marginBottom: 12 }}>Subfloor — Side B</CardTitle>
+
+        <Field label="Subfloor Type" tip="Side B may have a different subfloor than Side A — e.g. if you're adding plywood before tiling.">
+          <Select value={config.subfloorB} onChange={v => onChange({ subfloorB: v })}>
+            {SUBFLOORS_B.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </Select>
+        </Field>
       </Card>
 
       {/* Project Settings */}
@@ -157,16 +191,8 @@ export default function SideBPanel({ config, onChange }) {
           </Select>
         </Field>
 
-        <Checkbox
-          checked={config.radiant}
-          onChange={v => onChange({ radiant: v })}
-          label="Radiant heat under new floor"
-        />
-        <Checkbox
-          checked={config.wetArea}
-          onChange={v => onChange({ wetArea: v })}
-          label="Wet area / shower adjacent"
-        />
+        <Checkbox checked={config.radiant} onChange={v => onChange({ radiant: v })} label="Radiant heat under new floor" />
+        <Checkbox checked={config.wetArea} onChange={v => onChange({ wetArea: v })} label="Wet area / shower adjacent" />
       </Card>
     </div>
   )

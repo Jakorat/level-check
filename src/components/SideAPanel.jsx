@@ -1,6 +1,7 @@
 import React from 'react'
 import { Card, CardTitle, Field, Select, Input, Checkbox, Divider, Alert } from './UI'
-import { SUBFLOOR_DITRA_OK } from '../utils/calculations'
+import LayerBuilder from './LayerBuilder'
+import { toFrac, extraLayersTotal } from '../utils/calculations'
 
 const SIDEA_TYPES = [
   { value: 'hardwood',      label: 'Solid Hardwood' },
@@ -21,17 +22,21 @@ const HW_THICKNESSES = [
 ]
 
 const SUBFLOORS = [
-  { value: 'plywood-3/4', label: 'Plywood 3/4" (19mm) — Preferred' },
+  { value: 'plywood-3/4', label: 'Plywood 3/4"' },
   { value: 'plywood-5/8', label: 'Plywood 5/8"' },
+  { value: 'plywood-1/2', label: 'Plywood 1/2"' },
+  { value: 'plywood-1/4', label: 'Plywood 1/4"' },
   { value: 'osb-3/4',     label: 'OSB 3/4"' },
-  { value: 'osb-7/16',    label: 'OSB 7/16" (thin — problematic)' },
+  { value: 'osb-7/16',    label: 'OSB 7/16" (thin)' },
   { value: 'concrete',    label: 'Concrete Slab' },
-  { value: 'plank',       label: 'Plank Subfloor (old construction)' },
+  { value: 'plank',       label: 'Plank (old construction)' },
+  { value: 'none',        label: 'Not included / N/A' },
 ]
 
-export default function SideAPanel({ config, onChange, issues }) {
-  const isHW = ['hardwood', 'engineered', 'laminate'].includes(config.typeA)
+export default function SideAPanel({ config, onChange, issues, extraLayers, onAddLayer, onRemoveLayer, onUpdateLayer, onMoveLayer }) {
+  const isHW     = ['hardwood', 'engineered', 'laminate'].includes(config.typeA)
   const isCustom = !isHW
+  const extraTotal = extraLayersTotal(extraLayers)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -46,25 +51,17 @@ export default function SideAPanel({ config, onChange, issues }) {
 
         {isHW && (
           <>
-            <Field
-              label="Thickness"
-              tip="Standard solid hardwood is 3/4&quot;. Some older installs are 5/8&quot; or 33/32&quot;."
-            >
+            <Field label="Thickness" tip='Standard solid hardwood is 3/4". Older installs may be 5/8" or 33/32".'>
               <Select value={config.hwThick} onChange={v => onChange({ hwThick: v })}>
                 {HW_THICKNESSES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </Select>
             </Field>
-
             {config.hwThick === 'custom' && (
               <div style={{ marginTop: 6 }}>
-                <Input
-                  type="number" value={config.hwCustom}
-                  onChange={v => onChange({ hwCustom: v })}
-                  placeholder="0.75" step="0.0625" min="0.25" max="2" suffix="in"
-                />
+                <Input type="number" value={config.hwCustom} onChange={v => onChange({ hwCustom: v })}
+                  placeholder="0.75" step="0.0625" min="0.25" max="2" suffix="in" />
               </div>
             )}
-
             <Field label="Installation Method">
               <Select value={config.hwInstall} onChange={v => onChange({ hwInstall: v })}>
                 <option value="nail">Nail-down (standard)</option>
@@ -72,7 +69,6 @@ export default function SideAPanel({ config, onChange, issues }) {
                 <option value="glue">Glue-down</option>
               </Select>
             </Field>
-
             <Field label="Finish / Wear Layer">
               <Select value={config.hwFinish} onChange={v => onChange({ hwFinish: v })}>
                 <option value="0">Factory finished</option>
@@ -84,13 +80,34 @@ export default function SideAPanel({ config, onChange, issues }) {
 
         {isCustom && (
           <Field label="Total Thickness">
-            <Input
-              type="number" value={config.customA}
-              onChange={v => onChange({ customA: v })}
-              placeholder="0.75" step="0.0625" min="0.0625" max="4" suffix="in"
-            />
+            <Input type="number" value={config.customA} onChange={v => onChange({ customA: v })}
+              placeholder="0.75" step="0.0625" min="0.0625" max="4" suffix="in" />
           </Field>
         )}
+
+        {/* Extra layers */}
+        {extraLayers.length > 0 && (
+          <div style={{
+            marginTop: 10,
+            padding: '6px 10px',
+            background: 'rgba(232,201,126,0.06)',
+            border: '1px solid rgba(232,201,126,0.15)',
+            borderRadius: 6,
+            fontSize: '0.68rem',
+            color: 'var(--muted)',
+          }}>
+            + {toFrac(extraTotal)}" from {extraLayers.length} added layer{extraLayers.length > 1 ? 's' : ''}
+          </div>
+        )}
+
+        <LayerBuilder
+          side="A"
+          extraLayers={extraLayers}
+          onAdd={onAddLayer}
+          onRemove={onRemoveLayer}
+          onUpdate={onUpdateLayer}
+          onMove={onMoveLayer}
+        />
 
         <Divider />
 
@@ -98,29 +115,17 @@ export default function SideAPanel({ config, onChange, issues }) {
 
         <Field label="Subfloor Type">
           <Select value={config.subfloor} onChange={v => onChange({ subfloor: v })}>
-            {SUBFLOORS.map(o => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
+            {SUBFLOORS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </Select>
         </Field>
 
-        <Checkbox
-          checked={config.deflect}
-          onChange={v => onChange({ deflect: v })}
-          label="Subfloor shows flex / deflection"
-        />
-        <Checkbox
-          checked={config.unlevel}
-          onChange={v => onChange({ unlevel: v })}
-          label='Subfloor not flat (>3/16" in 10 ft)'
-        />
+        <Checkbox checked={config.deflect}  onChange={v => onChange({ deflect: v })}  label="Subfloor shows flex / deflection" />
+        <Checkbox checked={config.unlevel}  onChange={v => onChange({ unlevel: v })}  label='Subfloor not flat (>3/16" in 10 ft)' />
       </Card>
 
       {issues.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {issues.map((issue, i) => (
-            <Alert key={i} type={issue.type}>{issue.text}</Alert>
-          ))}
+          {issues.map((issue, i) => <Alert key={i} type={issue.type}>{issue.text}</Alert>)}
         </div>
       )}
     </div>
